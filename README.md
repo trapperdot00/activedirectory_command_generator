@@ -41,5 +41,5 @@ Generates commands from a given CSV file to create users in Active Directory via
 <pre>New-ADUser -AccountPassword (ConvertTo-SecureString "Passw0rd" -AsPlainText -Force)</pre>
 <p>Parameters taking <b>Boolean</b>s have a check if the string value contains either <b>$true</b>, <b>$false</b>, <b>0</b> or <b>1</b>, if yes, has numeric values are converted into the variable form, else it throws an error.</p>
 <pre>New-ADUser -Enabled $true</pre>
-<p>Parameters that take other types of arguments do no formatting and warns the user on the standard output with the typename. Other typenames are yet to be implemented.</p>
+<p>Parameters that take other types of arguments do no formatting and warn the user on the standard output with the typename. Other typenames are yet to be implemented.</p>
 <pre>warning: default formatting of parameter taking -AccountExpirationDate</pre>
