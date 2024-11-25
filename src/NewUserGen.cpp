@@ -125,8 +125,14 @@ std::string NewUserGen::format_arg(const Command &cmd, const std::string &arg) {
 			stream << " (ConvertTo-SecureString \"" << arg << "\" -AsPlainText -Force)";
 			break;
 		case Command::Boolean:
-			if (cmd != "0" && cmd != "$false" && cmd != "1" && cmd != "$true")
+			if (arg != "0" && arg != "$false" && arg != "1" && arg != "$true")
 				throw std::runtime_error("non-bool value given for parameter taking bool");
+			if (arg == "0")
+				stream << " $false";
+			else if (arg == "1")
+				stream << " $true";
+			else
+				stream << " " + arg;
 			break;
 		default:
 			if (default_format_warner.find(std::string(cmd)) == default_format_warner.cend()) {
