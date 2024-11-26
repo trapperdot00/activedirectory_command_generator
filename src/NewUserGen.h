@@ -9,28 +9,35 @@
 #include <memory>
 #include <map>
 #include <set>
+#include <iostream>
 
-#include "User.h"
 #include "Command.h"
+#include "Row.h"
+#include "Flags.h"
+#include "Random.h"
 
 class NewUserGen;
 std::ostream &operator<<(std::ostream &, const NewUserGen &);
 
 class NewUserGen {
-public:
-	explicit NewUserGen(std::ifstream &, const std::map<std::string, std::string> &);
-
-	std::vector<std::string> operator()() const;
+public:	
+	NewUserGen(std::ifstream &, std::ifstream &, Flags = Flags());
 
 	std::ostream &print(std::ostream &) const;
 private:
+	static std::map<std::string, std::string> parse_mapfile(std::ifstream &);
+	static std::vector<Row> read_rows(std::istream &);
 	static std::map<std::string, Command> validate_map(const std::map<std::string, std::string> &);
 	static std::string format_arg(const Command &, const std::string &);
+	std::vector<std::size_t> build_positions();
 
-	std::shared_ptr<CsvHeader> header;
-	std::vector<User> users;
-	std::map<std::string, Command> header_to_cmd;
 	static const std::set<Command> commands;
+
+	Flags flags;
+	std::map<std::string, Command> header_to_cmd;
+	std::vector<Row> rows;
+
+	std::vector<std::size_t> valid_header_pos;
 };
 
 #endif

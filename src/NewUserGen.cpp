@@ -1,37 +1,35 @@
 #include "NewUserGen.h"
-#include "Command.h"
 
-NewUserGen::NewUserGen(std::ifstream &in_file, const std::map<std::string, std::string> &c)
-		: header(new CsvHeader(in_file)), header_to_cmd(validate_map(c)) {
-	std::string line;
-	while (std::getline(in_file, line)) {
-		users.push_back(User(header, line));
-	}
-}
-
-std::vector<std::string> NewUserGen::operator()() const {
-	std::vector<std::string> command_vec;
-	for (const User &user : users) {
-		std::ostringstream build;
-		build << "New-ADUser";	
-		for (const std::pair<std::shared_ptr<std::string>, std::string> &p : user.values) {
-			std::map<std::string, Command>::const_iterator cmd_it = header_to_cmd.find(*p.first);
-			if (cmd_it != header_to_cmd.cend())
-				build << " " << format_arg(cmd_it->second, p.second);
-		}
-		command_vec.push_back(build.str());
-	}
-	return command_vec;
-}
+NewUserGen::NewUserGen(std::ifstream &in_file, std::ifstream &map_file, Flags f)
+	: flags(f), header_to_cmd(validate_map(parse_mapfile(map_file))), rows(read_rows(in_file)),
+	valid_header_pos(build_positions())
+{}
 
 std::ostream &NewUserGen::print(std::ostream &os) const {
-	for (const User &user : users) {
-		for (const auto &p : user.values) {
-			os << *p.first << "\t:\t" << p.second << '\n';
+	std::ostringstream stream;
+	for (std::size_t i = 1; i < rows.size(); ++i) {
+		stream << "New-ADUser";
+		for (const std::size_t &j : valid_header_pos) {
+			const std::string &header_field = rows[0][j];
+			const std::string &value_field = rows[i][j];
+			stream << ' ' << format_arg(header_to_cmd.find(header_field)->second, value_field);
 		}
-		os << '\n';
+		if (flags & Flags::random_password) {
+			std::ostringstream pass_stream;
+			static std::vector<Random<char>> randoms = {
+				Random<char>('a', 'z'),
+				Random<char>('A', 'Z'),
+				Random<char>('0', '9')
+			};
+			static Random<short> r_select(0, 2);
+			for (std::size_t i = 0; i != 12; ++i) {
+				pass_stream << randoms[r_select()]();
+			}
+			stream << ' ' << format_arg({"-AccountPassword", Command::SecureString}, pass_stream.str());
+		}
+		stream << '\n';
 	}
-	return os;
+	return os << stream.str();
 }
 
 std::ostream &operator<<(std::ostream &os, const NewUserGen &ng) {
@@ -101,6 +99,44 @@ const std::set<Command> NewUserGen::commands = {
 	{"-UserPrincipalName", Command::String}
 };
 
+std::map<std::string, std::string> NewUserGen::parse_mapfile(std::ifstream &file) {
+	std::map<std::string, std::string> ret;
+	std::set<std::string> existing_commands;
+	std::string line;
+	std::size_t lines_read = 0;
+	while (std::getline(file, line)) {
+		if (line.empty()) continue;
+		std::istringstream stream(line);
+		std::string header, command;
+		if (!std::getline(stream, header, ';') || !std::getline(stream, command))
+			throw std::runtime_error("mapfile invalid format");
+		if (existing_commands.find(command) != existing_commands.cend())
+			throw std::runtime_error("multiple bindings to the same command in the mapfile");
+		existing_commands.insert(command);
+		ret.insert({header, command});
+		++lines_read;
+	}
+	if (lines_read == 0)
+		throw std::runtime_error("mapfile empty");
+	return ret;
+}
+
+std::vector<Row> NewUserGen::read_rows(std::istream &is) {
+	std::vector<Row> ret;
+	std::string line;
+	std::size_t read_lines = 0;
+	while (std::getline(is, line)) {
+		ret.emplace_back(line);
+		++read_lines;
+	}
+	if (read_lines == 0)
+		throw std::runtime_error("csv file is empty");
+	else if (read_lines == 1)
+		throw std::runtime_error("csv file only contains the header");
+
+	return ret;
+}
+
 std::map<std::string, Command> NewUserGen::validate_map(const std::map<std::string, std::string> &m) {
 	std::map<std::string, Command> ret;
 	for (const std::pair<std::string, std::string> &p : m) {
@@ -143,4 +179,19 @@ std::string NewUserGen::format_arg(const Command &cmd, const std::string &arg) {
 			break;
 	}
 	return stream.str();
+}
+
+std::vector<std::size_t> NewUserGen::build_positions() {
+	std::vector<std::size_t> ret;
+	if (!rows.empty()) {
+		for (std::size_t i = 0; i != rows[0].size(); ++i) {
+			std::map<std::string, Command>::const_iterator it;
+			if ((it = header_to_cmd.find(rows[0][i])) == header_to_cmd.cend())
+				continue;
+			if ((flags & Flags::random_password) && std::string(it->second) == "-AccountPassword")
+				continue;
+			ret.push_back(i);
+		}
+	}
+	return ret;
 }
