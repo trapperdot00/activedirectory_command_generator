@@ -3,14 +3,16 @@
 
 #include <bitset>
 #include <iostream>
+#include <map>
 
 class Flags {
 public:
+	// Watch out for container's size in bits to be at least
+	// as big as Flag's enumerator count
 	enum Flag {
 		random_password,
-		b,
-		c,
-		d
+		use_overrides,
+		use_fallbacks
 	};
 
 private:
@@ -22,6 +24,7 @@ private:
 public:
 	Flags() = default;
 	Flags(Flag);
+	Flags(int, const char * const[]);
 
 	Flags &operator&=(Flag);
 	Flags &operator&=(const Flags &);
@@ -33,8 +36,14 @@ public:
 	Flags &operator^=(const Flags &);
 
 	Flags operator~() const;
+
+	explicit operator bool() const { return valid; }
+
 private:
 	container data;
+	bool valid = false;
+	static const std::map<std::string, Flag> arg_to_flag;
+	static constexpr int mandatory_arg_count = 3;
 };
 
 bool operator&(const Flags &, Flags::Flag);

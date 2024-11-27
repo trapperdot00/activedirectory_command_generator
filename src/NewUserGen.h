@@ -11,6 +11,7 @@
 #include <set>
 #include <iostream>
 
+#include "StringOperations.h"
 #include "Command.h"
 #include "Row.h"
 #include "Flags.h"
@@ -26,10 +27,11 @@ public:
 	std::ostream &print(std::ostream &) const;
 private:
 	static std::map<std::string, std::string> parse_mapfile(std::ifstream &);
-	static std::vector<Row> read_rows(std::istream &);
-	static std::map<std::string, Command> validate_map(const std::map<std::string, std::string> &);
+	void read_rows(std::istream &);
+	void validate_map(const std::map<std::string, std::string> &);
 	static std::string format_arg(const Command &, const std::string &);
-	std::vector<std::size_t> build_positions();
+	void build_positions();
+	static bool is_special(const std::string &);
 
 	static const std::set<Command> commands;
 

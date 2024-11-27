@@ -1,9 +1,11 @@
 #include "NewUserGen.h"
 
 NewUserGen::NewUserGen(std::ifstream &in_file, std::ifstream &map_file, Flags f)
-	: flags(f), header_to_cmd(validate_map(parse_mapfile(map_file))), rows(read_rows(in_file)),
-	valid_header_pos(build_positions())
-{}
+		: flags(f) {
+	validate_map(parse_mapfile(map_file)); // header_to_cmd
+	read_rows(in_file);	// rows
+	build_positions();	// valid_header_pos
+}
 
 std::ostream &NewUserGen::print(std::ostream &os) const {
 	std::ostringstream stream;
@@ -105,10 +107,11 @@ std::map<std::string, std::string> NewUserGen::parse_mapfile(std::ifstream &file
 	std::string line;
 	std::size_t lines_read = 0;
 	while (std::getline(file, line)) {
-		if (line.empty()) continue;
+		if (line.empty() || trim(line).empty()) continue;
 		std::istringstream stream(line);
 		std::string header, command;
-		if (!std::getline(stream, header, ';') || !std::getline(stream, command))
+		if (!std::getline(stream, header, ';') || !std::getline(stream, command)
+				|| trim(header).empty() || trim(command).empty())
 			throw std::runtime_error("mapfile invalid format");
 		if (existing_commands.find(command) != existing_commands.cend())
 			throw std::runtime_error("multiple bindings to the same command in the mapfile");
@@ -121,32 +124,32 @@ std::map<std::string, std::string> NewUserGen::parse_mapfile(std::ifstream &file
 	return ret;
 }
 
-std::vector<Row> NewUserGen::read_rows(std::istream &is) {
-	std::vector<Row> ret;
+void NewUserGen::read_rows(std::istream &is) {
 	std::string line;
 	std::size_t read_lines = 0;
 	while (std::getline(is, line)) {
-		ret.emplace_back(line);
+		rows.emplace_back(line);
 		++read_lines;
 	}
 	if (read_lines == 0)
 		throw std::runtime_error("csv file is empty");
 	else if (read_lines == 1)
 		throw std::runtime_error("csv file only contains the header");
-
-	return ret;
 }
 
-std::map<std::string, Command> NewUserGen::validate_map(const std::map<std::string, std::string> &m) {
-	std::map<std::string, Command> ret;
+void NewUserGen::validate_map(const std::map<std::string, std::string> &m) {
 	for (const std::pair<std::string, std::string> &p : m) {
 		std::set<Command>::const_iterator it = commands.cbegin();
 		while (it != commands.cend() && std::string(*it) != p.second) ++it;
 		if (it == commands.cend())
 			throw std::runtime_error("given command does not exist: " + p.second);
-		ret.insert({p.first, *it});
+		if (is_special(p.first)) {
+			std::cout << "special: " << p.first << '\t' << it->type() << std::endl;
+		} else {
+			std::cout << "normal: " << p.first << '\t' << it->type() << std::endl;
+			header_to_cmd.insert({p.first, *it});
+		}
 	}
-	return ret;
 }
 
 std::string NewUserGen::format_arg(const Command &cmd, const std::string &arg) {
@@ -181,8 +184,7 @@ std::string NewUserGen::format_arg(const Command &cmd, const std::string &arg) {
 	return stream.str();
 }
 
-std::vector<std::size_t> NewUserGen::build_positions() {
-	std::vector<std::size_t> ret;
+void NewUserGen::build_positions() {
 	if (!rows.empty()) {
 		for (std::size_t i = 0; i != rows[0].size(); ++i) {
 			std::map<std::string, Command>::const_iterator it;
@@ -190,8 +192,14 @@ std::vector<std::size_t> NewUserGen::build_positions() {
 				continue;
 			if ((flags & Flags::random_password) && std::string(it->second) == "-AccountPassword")
 				continue;
-			ret.push_back(i);
+			valid_header_pos.push_back(i);
 		}
 	}
-	return ret;
+}
+
+bool NewUserGen::is_special(const std::string &s) {
+	if (s[0] == '$') {
+		return true;
+	}
+	return false;
 }
