@@ -14,7 +14,12 @@ std::ostream &NewUserGen::print(std::ostream &os) const {
 		for (const std::size_t &j : valid_header_pos) {
 			const std::string &header_field = rows[0][j];
 			const std::string &value_field = rows[i][j];
-			stream << ' ' << format_arg(header_to_cmd.find(header_field)->second, value_field);
+			std::map<Command, std::string>::const_iterator f_it;
+			if (flags & Flags::use_fallbacks && ((f_it = fallback_values.find(header_to_cmd.find(header_field)->second)) != fallback_values.cend()) && value_field.empty()) {
+				stream << ' ' << format_arg(f_it->first, f_it->second); 
+			}else {
+				stream << ' ' << format_arg(header_to_cmd.find(header_field)->second, value_field);
+			}
 		}
 		if (flags & Flags::random_password) {
 			std::ostringstream pass_stream;
@@ -113,9 +118,11 @@ std::map<std::string, std::string> NewUserGen::parse_mapfile(std::ifstream &file
 		if (!std::getline(stream, header, ';') || !std::getline(stream, command)
 				|| trim(header).empty() || trim(command).empty())
 			throw std::runtime_error("mapfile invalid format");
-		if (existing_commands.find(command) != existing_commands.cend())
-			throw std::runtime_error("multiple bindings to the same command in the mapfile");
-		existing_commands.insert(command);
+		if (!is_special(header)) {
+			if (existing_commands.find(command) != existing_commands.cend())
+				throw std::runtime_error("multiple bindings to the same command in the mapfile");
+			existing_commands.insert(command);
+		}
 		ret.insert({header, command});
 		++lines_read;
 	}
@@ -143,12 +150,35 @@ void NewUserGen::validate_map(const std::map<std::string, std::string> &m) {
 		while (it != commands.cend() && std::string(*it) != p.second) ++it;
 		if (it == commands.cend())
 			throw std::runtime_error("given command does not exist: " + p.second);
-		if (is_special(p.first)) {
-			std::cout << "special: " << p.first << '\t' << it->type() << std::endl;
-		} else {
-			std::cout << "normal: " << p.first << '\t' << it->type() << std::endl;
+		if (!is_special(p.first))
 			header_to_cmd.insert({p.first, *it});
+		else {
+			std::string value = remove_special(p.first);
+			if (value.empty())
+				throw std::runtime_error("no value after special command in mapfile for " + get_special(p.first) + "|");
+			if (is_override(p.first.substr(p.first.find('$')))) {
+				if (flags & Flags::use_overrides)
+					override_values.insert({*it, value});
+			}
+			else if (is_fallback(p.first.substr(p.first.find('$')))) {
+				if (flags & Flags::use_fallbacks)
+					fallback_values.insert({*it, value});
+			} else {
+				throw std::runtime_error("unrecognizable special command in mapfile: " + p.first);
+			}
 		}
+	}
+	std::cout << "Normal mappings:" << std::endl;
+	for (const auto &p : header_to_cmd) {
+		std::cout << '|' << p.first << '|' << '\t' << '|' << p.second.name() << '|' << std::endl;
+	}
+	std::cout << "\nOverride values:" << std::endl;
+	for (const auto &p : override_values) {
+		std::cout << '|' << p.first.name() << '|' << '\t' << '|' << p.second << '|' << std::endl;
+	}
+	std::cout << "\nFallback values:" << std::endl;
+	for (const auto &p : fallback_values) {
+		std::cout << '|' << p.first.name() << '|' << '\t' << '|' << p.second << '|' << std::endl;
 	}
 }
 
@@ -198,8 +228,54 @@ void NewUserGen::build_positions() {
 }
 
 bool NewUserGen::is_special(const std::string &s) {
-	if (s[0] == '$') {
+	if (s.find('$') != std::string::npos) {
 		return true;
 	}
 	return false;
+}
+
+bool NewUserGen::is_override(const std::string &s) {
+	return s.find("$OVERRIDE$") == 0;
+}
+
+bool NewUserGen::is_fallback(const std::string &s) {
+	return s.find("$FALLBACK$") == 0;
+}
+
+std::string NewUserGen::remove_special(const std::string &s) {
+	std::size_t cnt = 0;
+	std::string::size_type i = 0;
+	while (i != s.size() && cnt != 2) {
+		if (s[i++] == '$') ++cnt;
+	}
+	if (i != s.size())
+		return s.substr(i);
+	else
+		return "";
+}
+
+std::string NewUserGen::get_special(const std::string &s) {
+	std::string::size_type beg_pos = 0;
+	bool encountered = false;
+	while (beg_pos != s.size() && !encountered) {
+		if (s[beg_pos] == '$')
+			encountered = true;
+		else
+			++beg_pos;
+	}
+	if (!encountered)
+		return "";
+
+	std::string::size_type end_pos = beg_pos + 1;
+	encountered = false;
+	while (end_pos != s.size() && !encountered) {
+		if (s[end_pos] == '$')
+			encountered = true;
+		else
+			++end_pos;
+	}
+	if (!encountered)
+		return "";
+
+	return s.substr(beg_pos, end_pos - beg_pos + 1);
 }

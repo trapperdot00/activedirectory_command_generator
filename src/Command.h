@@ -35,7 +35,7 @@ public:
 		return value_;
 	}
 	Type type() const { return type_; }
-
+	std::string name() const { return value_; }
 private:
 	const std::string value_;
 	Type type_;
