@@ -10,7 +10,6 @@ void program(int argc, char *argv[]) {
 		print_usage(argc, argv);
 		return;
 	}
-	std::cout << flags << std::endl;
 
 	std::ifstream csvfile(argv[1]);
 	if (!csvfile.is_open())

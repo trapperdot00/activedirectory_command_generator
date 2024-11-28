@@ -5,8 +5,15 @@ Row::Row(const std::string &line) {
 	for (std::istringstream stream(line); std::getline(stream,field, ';'); fields.push_back(field)) ;
 }
 
-std::ostream &operator<<(std::ostream &os, const Row &r) {
-	for (std::vector<std::string>::size_type i = 0; i != r.size(); ++i)
-		os << r[i] << '\n';
+std::ostream &Row::print(std::ostream &os) const {
+	for (std::vector<std::string>::size_type i = 0; i != size(); ++i) {
+		if (i)
+			os << '\n';
+		os << this->operator[](i);
+	}
 	return os;
+}
+
+std::ostream &operator<<(std::ostream &os, const Row &r) {
+	return r.print(os);
 }

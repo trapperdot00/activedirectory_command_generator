@@ -17,3 +17,20 @@ std::string trim_right(const std::string &s) {
 std::string trim(const std::string &s) {
 	return trim_right(trim_left(s));
 }
+
+bool only_whitespace(const std::string &s) {
+	return s.find_first_not_of("\n\t ") == std::string::npos;
+}
+
+std::string::size_type find_nth(const std::string &s, std::string::size_type n, char c) {
+	if (!n) return std::string::npos;
+	std::string::size_type pos = 0, count = 0;
+	while (pos != s.size()) {
+		if (s[pos] == c)
+			++count;
+		if (count == n)
+			return pos;
+		++pos;
+	}
+	return std::string::npos;
+}
