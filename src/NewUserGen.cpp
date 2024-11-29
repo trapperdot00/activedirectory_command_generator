@@ -9,38 +9,57 @@ NewUserGen::NewUserGen(std::ifstream &csvfile, std::ifstream &mapfile, Flags f)
 	if (csvrows.size() == 1)
 		throw std::runtime_error("csvfile contains only the header");
 
-	for (std::string line; std::getline(mapfile, line); maprows.emplace_back(line)) ;
-	if (maprows.empty())
-		throw std::runtime_error("mapfile is empty");
+	std::set<std::string> existing_parameter_mappings;
+	for (std::string line; std::getline(mapfile, line); ) {
+		if (commented_out(line)) continue;
+	   	maprows.emplace_back(line);;
+		const MapRow &maprow = maprows[maprows.size() - 1];
+		const std::string &parameter = maprow.parameter();
+		switch (maprow.type()) {
+		case MapRow::mapping:
+			if (existing_parameter_mappings.find(parameter) != existing_parameter_mappings.cend())
+				throw std::runtime_error("multiple bindings to parameter " + parameter);
+			existing_parameter_mappings.insert(parameter);
+			break;
+		case MapRow::cmd_override:
+			// TODO
+			break;
+		case MapRow::cmd_fallback:
+			// TODO
+			break;
+		default:
+			break;
+		}
+	}
+	if (maprows.size() == 0)
+		throw std::runtime_error("mapfile is empty or has only commented out rows");
+	if (std::count_if(maprows.cbegin(), maprows.cend(), [](const MapRow &m){ return m.type() == MapRow::mapping; }) == 0)
+		throw std::runtime_error("mapfile contains only command rows");
 }
 
 std::ostream &NewUserGen::print(std::ostream &os) const {
-
-	// build map
-	std::multimap<std::string, std::string> header_field_to_map;
-	const CsvRow &header_row = csvrows[0];
-	for (std::vector<std::string>::size_type i = 0; i != header_row.size(); ++i) {
-		for (const MapRow &map_row : maprows) {
-			if (map_row.type() == MapRow::mapping && header_row[i] == map_row.left()) {
-				header_field_to_map.insert({header_row[i], map_row.right()});
+	for (std::size_t csvrow_i = 1; csvrow_i < csvrows.size(); ++csvrow_i) {
+		os << "New-ADUser";
+		const CsvRow &header_row = csvrows[0];
+		const CsvRow &curr_csvrow = csvrows[csvrow_i];
+		for (std::vector<std::string>::size_type csvfield_i = 0; csvfield_i != csvrows[csvrow_i].size(); ++csvfield_i) {
+			const std::string &curr_csvfield = curr_csvrow[csvfield_i];
+			const std::string &curr_header_field = header_row[csvfield_i];
+			std::size_t maprow_i = 0;
+			while (maprow_i != maprows.size() && maprows[maprow_i].left() != curr_header_field) {
+				++maprow_i;
+			}
+			if (maprow_i != maprows.size()) {
+				const std::string &parameter = maprows[maprow_i].right();
+				const std::string &argument = curr_csvfield;
+				const ValueType &type = MapRow::parameter_value.find(parameter)->second;
+				if (argument.size()) {
+					std::string formatted = format_argument(argument, type);
+					os << ' ' << parameter << ' ' << formatted;
+				}
 			}
 		}
-	}
-
-	// print
-	for (std::size_t row_index = 1; row_index < csvrows.size(); ++row_index) {
-		os << "New-ADUser";
-		const CsvRow &current_row = csvrows[row_index];
-		for (const auto &p : header_field_to_map) {
-			std::vector<std::string>::const_iterator found = std::find(header_row.cbegin(), header_row.cend(), p.first);
-			std::vector<std::string>::difference_type field_num = found - header_row.cbegin();
-			const ValueType &type = MapRow::parameter_value.find(p.second)->second;
-
-			const std::string &parameter = p.second;
-			const std::string &argument = current_row[field_num];
-			os << " " << parameter << " " << format_argument(argument, type);
-		}
-		if (row_index + 1 != csvrows.size())
+		if (csvrow_i + 1 < csvrows.size())
 			os << '\n';
 	}
 	return os;

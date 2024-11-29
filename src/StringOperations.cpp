@@ -34,3 +34,14 @@ std::string::size_type find_nth(const std::string &s, std::string::size_type n, 
 	}
 	return std::string::npos;
 }
+
+bool commented_out(const std::string &s) {
+	static constexpr char comment = '#';
+	std::string::size_type c_pos = s.find(comment);
+	if (c_pos == std::string::npos)
+		return false;
+	std::string::size_type v_pos = s.find_first_not_of("\n\t ");
+	if (c_pos == v_pos)
+		return true;
+	return false;
+}

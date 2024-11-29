@@ -9,5 +9,6 @@ std::string trim(const std::string &);
 
 bool only_whitespace(const std::string &);
 std::string::size_type find_nth(const std::string &, std::string::size_type, char);
+bool commented_out(const std::string &);
 
 #endif

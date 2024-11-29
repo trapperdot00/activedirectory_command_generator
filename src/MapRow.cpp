@@ -3,7 +3,7 @@
 MapRow::MapRow(const std::string &s) : Row(s), _type(mapping) {
 	if (size() != 2 || only_whitespace(right()))
 		throw std::runtime_error("invalid mapfile format");
-	if (parameter_value.find(right()) == parameter_value.cend())
+	if (parameter_value.find(parameter()) == parameter_value.cend())
 		throw std::runtime_error("invalid mapfile parameter: '" + right() + '\'');
 	std::size_t special_char_count = std::count(left().cbegin(), left().cend(), '$');
 	if (special_char_count == 2) {
@@ -32,6 +32,10 @@ MapRow::MapRow(const std::string &s) : Row(s), _type(mapping) {
 	} else {
 		
 	}
+}
+
+std::string MapRow::parameter() const {
+	return trim(right());
 }
 
 std::ostream &MapRow::print(std::ostream &os) const {

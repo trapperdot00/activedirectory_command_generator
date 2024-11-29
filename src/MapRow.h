@@ -27,6 +27,7 @@ public:
 		cmd_fallback
 	};
 	int type() const { return _type; }
+	std::string parameter() const;
 private:
 	int _type;
 };
