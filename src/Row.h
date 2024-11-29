@@ -20,7 +20,7 @@ public:
 	bool empty() const { return !size(); }
 
 	virtual std::ostream &print(std::ostream &) const;
-private:
+protected:
 	std::vector<std::string> fields;
 };
 

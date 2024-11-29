@@ -27,7 +27,7 @@ void program(int argc, char *argv[]) {
 	if (!outfile.is_open())
 		throw std::runtime_error(std::string(argv[3]) + " failed to open");
 
-	outfile << usergen;
+	outfile << usergen << std::endl;
 	outfile.close();
 }
 

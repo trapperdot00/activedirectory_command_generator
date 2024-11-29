@@ -3,22 +3,18 @@
 NewUserGen::NewUserGen(std::ifstream &csvfile, std::ifstream &mapfile, Flags f)
 	: flags(f)
 {
-	std::string line;
-	while (std::getline(csvfile, line))
-		csvrows.emplace_back(line);
+	for (std::string line; std::getline(csvfile, line); csvrows.emplace_back(line)) ;
 	if (csvrows.empty())
 		throw std::runtime_error("csvfile is empty");
 	if (csvrows.size() == 1)
 		throw std::runtime_error("csvfile contains only the header");
 
-	while (std::getline(mapfile, line))
-		maprows.emplace_back(line);
+	for (std::string line; std::getline(mapfile, line); maprows.emplace_back(line)) ;
 	if (maprows.empty())
 		throw std::runtime_error("mapfile is empty");
 }
 
 std::ostream &NewUserGen::print(std::ostream &os) const {
-	os << "New-ADUser ";
 
 	// build map
 	std::multimap<std::string, std::string> header_field_to_map;
@@ -30,8 +26,22 @@ std::ostream &NewUserGen::print(std::ostream &os) const {
 			}
 		}
 	}
-	for (const auto &p : header_field_to_map) {
-		std::cout << '|' << p.first << "|\t|" << p.second << '|' << std::endl;
+
+	// print
+	for (std::size_t row_index = 1; row_index < csvrows.size(); ++row_index) {
+		os << "New-ADUser";
+		const CsvRow &current_row = csvrows[row_index];
+		for (const auto &p : header_field_to_map) {
+			std::vector<std::string>::const_iterator found = std::find(header_row.cbegin(), header_row.cend(), p.first);
+			std::vector<std::string>::difference_type field_num = found - header_row.cbegin();
+			const ValueType &type = MapRow::parameter_value.find(p.second)->second;
+
+			const std::string &parameter = p.second;
+			const std::string &argument = current_row[field_num];
+			os << " " << parameter << " " << format_argument(argument, type);
+		}
+		if (row_index + 1 != csvrows.size())
+			os << '\n';
 	}
 	return os;
 }
