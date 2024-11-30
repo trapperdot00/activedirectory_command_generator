@@ -18,9 +18,10 @@ public:
 	const std::string &left() const { return Row::operator[](0); }
 	const std::string &right() const { return Row::operator[](1); }
 
+	std::string row() const { return left() + ';' + right(); }
+
 	std::ostream &print(std::ostream &) const override;
 
-	static const std::map<std::string, ValueType> parameter_value;
 	enum {
 		mapping,
 		cmd_override,
@@ -31,5 +32,7 @@ public:
 private:
 	int _type;
 };
+
+int get_command_type(const std::string &);
 
 #endif

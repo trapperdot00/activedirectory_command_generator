@@ -5,6 +5,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <set>
+#include <map>
 
 enum class ValueType {
 	String,
@@ -22,6 +23,8 @@ enum class ValueType {
 	ADPrincipal_Array,
 	String_Array
 };
+
+extern const std::map<std::string, ValueType> parameter_value;
 
 std::string format_argument(const std::string &, ValueType);
 

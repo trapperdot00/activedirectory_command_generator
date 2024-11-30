@@ -38,104 +38,129 @@ NewUserGen::NewUserGen(std::ifstream &csvfile, std::ifstream &mapfile, Flags f)
 }
 
 std::ostream &NewUserGen::print(std::ostream &os) const {
-	// build map
-	std::map<std::string, std::string> header_to_param;
-	std::map<std::string, std::string> override_values;
-	std::map<std::string, std::string> fallback_values;
-	for (const MapRow &row : maprows) {
-		if (row.type() == MapRow::mapping) {
-			header_to_param.insert({row.right(), row.left()});
-		} else if (row.type() == MapRow::cmd_override) {
-			override_values.insert({row.parameter(), row.left().substr(find_nth(row.left(), 2, '$') + 1)});
-		} else if (row.type() == MapRow::cmd_fallback) {
-			fallback_values.insert({row.parameter(), row.left().substr(find_nth(row.left(), 2, '$') + 1)});
+	const auto mappers = get_mapper_rows();
+	auto mapped_commands = build_mapper_commands(mappers);
+	const auto commands = command_lines();
+	insert_commands(commands, mapped_commands);
+
+	bool first_run = true;
+	for (const std::map<std::string, std::string> &user_commands : mapped_commands) {
+		os << (!first_run ? "\n" : "") << "New-ADUser";
+		for (const auto &command : user_commands) {
+			os << ' ' << command.first << ' ' << command.second;
 		}
+		first_run = false;
 	}
 
-	std::vector<std::vector<std::string>> command_lines;
-	for (std::size_t csvrow_i = 1; csvrow_i < csvrows.size(); ++csvrow_i) {
-		std::map<std::string, std::string> commands;
-		const CsvRow &header_row = csvrows[0];
-		const CsvRow &curr_csvrow = csvrows[csvrow_i];
-		for (std::vector<std::string>::size_type csvfield_i = 0; csvfield_i != csvrows[csvrow_i].size(); ++csvfield_i) {
-			const std::string &curr_csvfield = curr_csvrow[csvfield_i];
-			const std::string &curr_header_field = header_row[csvfield_i];
-			for (std::size_t maprow_i = 0; maprow_i != maprows.size(); ++maprow_i) {	
-				const MapRow &curr_maprow = maprows[maprow_i];
-				const std::string &parameter = curr_maprow.parameter();
-				const std::string &argument = curr_csvfield;
-				const ValueType &type = MapRow::parameter_value.find(parameter)->second;
-				std::map<std::string, std::string>::const_iterator m_it;
-				if (argument.empty()) break;
-				if (curr_maprow.type() == MapRow::mapping) {
-					if (curr_header_field == curr_maprow.left()) {
-						std::string formatted = format_argument(argument, type);
-						commands.insert({parameter, formatted});
-					}
-				} else { 
-					if ((m_it = header_to_param.find(parameter)) != header_to_param.cend() && m_it->second == curr_header_field) {
-						if (curr_maprow.type() == MapRow::cmd_override) {
-							if (override_values.find(parameter) != override_values.end())
-								commands[parameter] = format_argument(override_values.find(parameter)->second, type);
-						} else if (curr_maprow.type() == MapRow::cmd_fallback) {
-							if (fallback_values.find(parameter) != fallback_values.end())
-								commands.insert({parameter, format_argument(fallback_values.find(parameter)->second, type)});
-						}
-					}
-				}
-			}
-		}
-		
-		for (const auto &p : override_values) {
-			if (commands.find(p.first) == commands.cend())
-					commands.insert({p.first, format_argument(p.second, MapRow::parameter_value.find(p.first)->second)});
-		}
-		for (const auto &p : fallback_values) {
-			if (commands.find(p.first) == commands.cend())
-					commands.insert({p.first, format_argument(p.second, MapRow::parameter_value.find(p.first)->second)});
-		}
-
-		std::vector<std::string> user_commands;
-		for (const auto &p : commands) {
-			user_commands.push_back(p.first + ' ' + p.second);
-		}
-		command_lines.push_back(user_commands);
-	}
-	for (std::vector<std::string>::size_type i = 0; i != command_lines.size(); ++i) {
-		os << "New-ADUser";
-		for (std::vector<std::string>::size_type j = 0; j != command_lines[i].size(); ++j)
-			os << ' ' << command_lines[i][j];
-		if (i + 1 < command_lines.size())
-			os << '\n';
-	}
-
-	/*
-	for (std::size_t csvrow_i = 1; csvrow_i < csvrows.size(); ++csvrow_i) {
-		os << "New-ADUser";
-		const CsvRow &header_row = csvrows[0];
-		const CsvRow &curr_csvrow = csvrows[csvrow_i];
-		for (std::vector<std::string>::size_type csvfield_i = 0; csvfield_i != csvrows[csvrow_i].size(); ++csvfield_i) {
-			const std::string &curr_csvfield = curr_csvrow[csvfield_i];
-			const std::string &curr_header_field = header_row[csvfield_i];
-			std::size_t maprow_i = 0;
-			while (maprow_i != maprows.size() && maprows[maprow_i].left() != curr_header_field) {
-				++maprow_i;
-			}
-			if (maprow_i != maprows.size()) {
-				const std::string &parameter = maprows[maprow_i].right();
-				const std::string &argument = curr_csvfield;
-				const ValueType &type = MapRow::parameter_value.find(parameter)->second;
-				if (argument.size()) {
-					std::string formatted = format_argument(argument, type);
-					os << ' ' << parameter << ' ' << formatted;
-				}
-			}
-		}
-		if (csvrow_i + 1 < csvrows.size())
-			os << '\n';
-	}
-	*/
 	return os;
+}
+
+std::map<std::string, std::vector<std::size_t>> NewUserGen::get_mapper_rows() const {
+	std::unordered_map<std::string, std::vector<std::size_t>> all;
+	for (std::size_t i = 0; i != maprows.size(); ++i)
+		all[maprows[i].left()].push_back(i);
+
+	std::map<std::string, std::vector<std::size_t>> ret;
+	for (const std::string &h_field : csvrows[0]) {
+		std::unordered_map<std::string, std::vector<std::size_t>>::iterator it = all.find(h_field);
+		if (it != all.end())
+			ret[h_field] = std::move(it->second);
+	}
+	return ret;
+}
+
+std::vector<std::map<std::string, std::string>>
+NewUserGen::build_mapper_commands(const std::map<std::string, std::vector<std::size_t>> &mappers) const {
+	std::vector<std::map<std::string, std::string>> commands;
+	for (std::vector<CsvRow>::const_iterator it = csvrows.cbegin() + 1; it < csvrows.cend(); ++it) {
+		const CsvRow &row = *it;
+		std::map<std::string, std::string> user_commands;
+		for (const auto &p : mappers) {
+			const std::string &header_field = p.first;
+			for (const auto i : p.second) {
+				std::size_t field_pos = std::find
+					(csvrows[0].cbegin(), csvrows[0].cend(), header_field) - csvrows[0].cbegin();
+				const std::string &parameter = maprows[i].parameter();
+				if (field_pos < row.size()) {
+					const std::string &argument = row[field_pos];
+					const ValueType &type = parameter_value.find(parameter)->second;
+					if (!argument.empty())
+						user_commands.insert({parameter, format_argument(argument, type)});
+				}
+			}
+		}
+		commands.push_back(user_commands);
+	}
+	return commands;
+}
+
+std::unordered_map<std::string, std::pair<std::string, std::vector<std::size_t>>> NewUserGen::command_lines() const {
+	std::unordered_map<std::string, std::pair<std::string, std::vector<std::size_t>>> ret;
+	std::size_t count = 0;
+	for (const MapRow &row : maprows) {
+		if (row.type() != MapRow::mapping) {
+			std::pair<std::string, std::vector<std::size_t>> &sec = ret[command_part(row.left())];
+			sec.first = value_part(row.left());
+			sec.second.push_back(count);
+		}
+		++count;
+	}
+	return ret;
+}
+
+void NewUserGen::insert_commands(const std::unordered_map<std::string, std::pair<std::string, std::vector<std::size_t>>> &cmd_map,
+		std::vector<std::map<std::string, std::string>> &mapped_commands) const {
+	for (auto it = cmd_map.cbegin(); it != cmd_map.cend(); ++it) {
+		const int cmd_type = get_command_type(it->first);
+		for (const auto &i : it->second.second) {
+			const std::string &parameter = maprows[i].parameter();
+			const std::string &value = value_part(maprows[i].left());
+			for (std::map<std::string, std::string> &user_commands : mapped_commands) {	
+				std::string formatted = format_argument(value, parameter_value.find(parameter)->second);
+				switch (cmd_type) {
+				case MapRow::cmd_override:
+					user_commands[parameter] = formatted;
+					break;
+				case MapRow::cmd_fallback:
+					if (user_commands.find(parameter) == user_commands.cend()
+							|| user_commands.find(parameter)->second.empty())
+					user_commands[parameter] = formatted;
+					break;
+				}
+			}
+		}
+	}
+	for (const auto &m : mapped_commands)
+		if (!has_all_mandatory_commands(m))
+			throw std::runtime_error("mandatory command has no value");
+}
+
+bool NewUserGen::has_all_mandatory_commands(const std::map<std::string, std::string> &user_commands) const {
+	static std::set<std::string> mandatory = { "-Name" };
+	return std::all_of(
+			mandatory.cbegin(),
+		   	mandatory.cend(),
+		   	[&user_commands](const std::string &cmd) { return user_commands.find(cmd) != user_commands.cend(); }
+	);
+}
+
+std::string::size_type get_end_of_command(const std::string &s, const std::string &callerfuncname) {
+	std::string::size_type ret = find_nth(s, 2, '$');
+	if (ret == std::string::npos)
+		throw std::runtime_error(callerfuncname + " received a non-command string");
+	return ret;
+}
+
+std::string command_part(const std::string &s) {
+	std::string::size_type end_pos = get_end_of_command(s, "command_part");
+	std::string ret = s.substr(0, end_pos + 1);
+	return ret;
+}
+
+std::string value_part(const std::string &s) {
+	std::string::size_type end_pos = get_end_of_command(s, "value_part");
+	std::string ret = s.substr(end_pos + 1);
+	return ret;
 }
 
 std::ostream &operator<<(std::ostream &os, const NewUserGen &a) {
