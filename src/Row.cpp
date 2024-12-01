@@ -2,7 +2,11 @@
 
 Row::Row(const std::string &line) {
 	std::string field;
-	for (std::istringstream stream(line); std::getline(stream,field, ';'); fields.push_back(field)) ;
+	std::istringstream stream(line);
+
+	// Read fields until the next delimiter
+	while (std::getline(stream,field, ';'))
+		fields.push_back(field);
 }
 
 std::ostream &Row::print(std::ostream &os) const {

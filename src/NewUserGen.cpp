@@ -1,31 +1,75 @@
 #include "NewUserGen.h"
 
 NewUserGen::NewUserGen(std::ifstream &csvfile, std::ifstream &mapfile, Flags f)
-	: flags(f)
+try : flags(f), csvrows(build_csvrows(csvfile)), maprows(build_maprows(mapfile))
 {
-	for (std::string line; std::getline(csvfile, line); csvrows.emplace_back(line)) ;
+	// If the csvfile is empty, or has no data aside from the header, throw
 	if (csvrows.empty())
 		throw std::runtime_error("csvfile is empty");
 	if (csvrows.size() == 1)
 		throw std::runtime_error("csvfile contains only the header");
 
-	std::set<std::string> existing_parameter_mappings;
-	for (std::string line; std::getline(mapfile, line); ) {
-		if (commented_out(line)) continue;
-	   	maprows.emplace_back(line);;
-		const MapRow &maprow = maprows[maprows.size() - 1];
-		const std::string &parameter = maprow.parameter();
-		if (maprow.type() == MapRow::mapping) {
-			if (existing_parameter_mappings.find(parameter) != existing_parameter_mappings.cend())
-				throw std::runtime_error("multiple bindings to parameter " + parameter);
-			existing_parameter_mappings.insert(parameter);
-		}
-	}
+	// If the mapfile is empty, throw
 	if (maprows.size() == 0)
 		throw std::runtime_error("mapfile is empty or has only commented out rows");
+
+	// If there are no non-command/mapping rows, throw
 	if (std::count_if(maprows.cbegin(), maprows.cend(), [](const MapRow &m){ return m.type() == MapRow::mapping; }) == 0)
 		throw std::runtime_error("mapfile contains only command rows");
+} catch (const std::exception &e) {
+	// TODO: rethrow with additional information
+	// based on which initialization failed,
+	// with some kind of new classes derived from
+	// std::runtime_error
+	throw;
 }
+
+std::vector<CsvRow> NewUserGen::build_csvrows(std::ifstream &csvfile) {
+	std::vector<CsvRow> ret;
+	
+	// Read lines
+	std::string line;
+	while (std::getline(csvfile, line)) {
+		ret.emplace_back(std::move(line));
+	}
+	return ret;
+}
+
+
+std::vector<MapRow> NewUserGen::build_maprows(std::ifstream &mapfile) {
+	std::vector<MapRow> ret;
+
+	// Hold already processed parameters
+	std::set<std::string> parameters;
+	std::string line;
+	while (std::getline(mapfile, line)) {
+		
+		// Skip commented out line
+		if (commented_out(line))
+			continue;
+
+		// Skip command based on flags
+		if ((flags & Flags::no_overrides || flags & Flags::no_fallbacks) && is_command(line)) {
+			int cmdtype = get_command_type(command_part(line));
+			if ((flags & Flags::no_overrides && cmdtype == MapRow::cmd_override) ||
+					(flags & Flags::no_fallbacks && cmdtype == MapRow::cmd_fallback))
+				continue;
+		}
+		
+		// Add a new MapRow into maprows based on the current line
+		maprows.emplace_back(std::move(line));
+		const MapRow &maprow = maprows.back();
+		
+		// Duplicate parameter checking for non-command lines
+		if (maprow.type() == MapRow::mapping) {
+			const std::string &parameter = maprow.parameter();
+			if (!parameters.insert(parameter).second)
+				throw std::runtime_error("multiple bindings to parameter " + parameter);
+		}
+	}
+	return ret;
+}
+
 
 std::ostream &NewUserGen::print(std::ostream &os) const {
 	const auto mappers = get_mapper_rows();
@@ -130,7 +174,10 @@ std::vector<std::map<std::string, std::string>> &mapped_commands) const {
 }
 
 bool NewUserGen::has_all_mandatory_commands(const std::map<std::string, std::string> &user_commands) const {
+	// All mandatory parameters
 	static std::set<std::string> mandatory = { "-Name" };
+
+	// Return if all of the mandatory fields are found in the user's commandlist
 	return std::all_of(
 			mandatory.cbegin(),
 		   	mandatory.cend(),
@@ -139,14 +186,27 @@ bool NewUserGen::has_all_mandatory_commands(const std::map<std::string, std::str
 }
 
 void NewUserGen::randomize_password(std::map<std::string, std::string> &user_commands) const {
+	// Random generators that represent the alphanumeric range
 	static std::vector<Random<char>> random_chargen =
 		{ {'a', 'z'}, {'A', 'Z'}, {'0', '9'} };
-	static Random<int> random_selector(0, 2);
+
+	// Random generator that selects which generator to use from above vector
+	static Random<int> random_selector(0, random_chargen.size() - 1);
+
+	// Password length
 	static constexpr std::size_t pass_length = 12;
+
+	// Parameter for user password
 	static const std::string parameter = "-AccountPassword";
+
+	// Holds the password's characters
 	std::ostringstream pass_stream;
+
+	// Generate the characters
 	for (std::size_t cnt = 0; cnt != pass_length; ++cnt)
 		pass_stream << random_chargen[random_selector()]();
+
+	// Replace or add the password command parameter and formatted value into the user's commandlist
 	user_commands[parameter] = format_argument(pass_stream.str(), parameter_value.find(parameter)->second);
 }
 

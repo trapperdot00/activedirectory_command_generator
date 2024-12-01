@@ -5,6 +5,7 @@
 
 void print_usage(int, char *[]);
 void program(int argc, char *argv[]) {
+	// Argument checking is done by Flags
 	Flags flags(argc, argv);
 	if (!flags) {
 		print_usage(argc, argv);
@@ -18,7 +19,7 @@ void program(int argc, char *argv[]) {
 	std::ifstream mapfile(argv[2]);
 	if (!mapfile.is_open())
 		throw std::runtime_error(std::string(argv[2]) + " failed to open");
-		
+
 	NewUserGen usergen(csvfile, mapfile, flags);
 	csvfile.close();
 	mapfile.close();
@@ -27,6 +28,7 @@ void program(int argc, char *argv[]) {
 	if (!outfile.is_open())
 		throw std::runtime_error(std::string(argv[3]) + " failed to open");
 
+	// Generate commands
 	outfile << usergen << std::endl;
 	outfile.close();
 }
@@ -34,9 +36,9 @@ void program(int argc, char *argv[]) {
 void print_usage(int argc, char *argv[]) {
 	std::cout << "usage: " << argv[0] << " csvfile mapfile outfile [-p] [-o] [-f]\n"
 		"options:\n"
-		"  [-r | --randomized-passwords]:\tflag to use random passwords for each user\n"
-		"  [-o | --override]:\t\t\tflag to use overrides in mapfile for each command\n"
-		"  [-f | --fallback]:\t\t\tflag to use fallbacks in mapfile for each command"
+		"  [-r | --randomized-passwords]:\tuse random passwords for each user\n"
+		"  [-o | --no-override]:\t\t\tignore override lines from mapfile\n"
+		"  [-f | --no-fallback]:\t\t\tignore fallback lines from mapfile"
 	<< std::endl;
 }
 
@@ -44,7 +46,7 @@ int main(int argc, char *argv[]) {
 	try {
 		program(argc, argv);
 	} catch (const std::exception &e) {
-		std::cerr << e.what() << std::endl;
+		std::cerr << "error: " << e.what() << std::endl;
 	}
 	return 0;
 }

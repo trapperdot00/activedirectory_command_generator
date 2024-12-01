@@ -1,7 +1,9 @@
 #include "ValueType.h"
 
+// Format argument to fit the parameter's type expectations
 std::string format_argument(const std::string &arg, ValueType type) {
-	static std::set<ValueType> default_formatting_warned;
+	// Hold default formatted types
+	static std::set<ValueType> warned;
 	std::ostringstream ret;
 	switch (type) {
 		case ValueType::String:
@@ -21,10 +23,9 @@ std::string format_argument(const std::string &arg, ValueType type) {
 				throw std::runtime_error("could not convert " + arg + " to Boolean");
 			break;
 		default:
-			if (default_formatting_warned.find(type) == default_formatting_warned.cend()) {
+			// If the type is already in warned, don't warn again
+			if (warned.insert(type).second)
 				std::clog << "warning: default formatting of arguments for parameters taking " << type << '\n';
-				default_formatting_warned.insert(type);
-			}
 			ret << arg;
 			break;
 	}
@@ -32,6 +33,7 @@ std::string format_argument(const std::string &arg, ValueType type) {
 }
 
 std::ostream &operator<<(std::ostream &os, const ValueType t) {
+	// Print representation of the given type
 	switch (t) {
 		case ValueType::String:
 			os << "String";
@@ -75,10 +77,13 @@ std::ostream &operator<<(std::ostream &os, const ValueType t) {
 		case ValueType::String_Array:
 			os << "String[]";
 			break;
+		default:
+			throw std::runtime_error("no representation of given ValueType");
 	}
 	return os;
 }
 
+// Parameter to given ValueType enumerator
 const std::map<std::string, ValueType> parameter_value = {
 	{"-AccountExpirationDate", ValueType::DateTime},
 	{"-AccountNotDelegated", ValueType::Boolean},

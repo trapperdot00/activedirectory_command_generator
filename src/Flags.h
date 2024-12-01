@@ -11,8 +11,8 @@ public:
 	// as big as Flag's enumerator count
 	enum Flag {
 		random_password,
-		use_overrides,
-		use_fallbacks
+		no_overrides,
+		no_fallbacks
 	};
 
 private:

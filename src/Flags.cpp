@@ -6,8 +6,8 @@ Flags::Flags(Flag f) {
 
 Flags::Flags(int argc, const char * const argv[]) : valid(argc > mandatory_arg_count) {
 	for (int i = mandatory_arg_count + 1; i < argc; ++i) {
-		std::map<std::string, Flag>::const_iterator it;
-		if ((it = arg_to_flag.find(std::string(argv[i]))) != arg_to_flag.cend()) {
+		std::map<std::string, Flag>::const_iterator it = arg_to_flag.find(std::string(argv[i]));
+		if (it != arg_to_flag.cend()) {
 			data.set(it->second);
 		} else {
 			throw std::runtime_error("invalid option: '" + std::string(argv[i]) + "'");
@@ -72,7 +72,7 @@ std::ostream &operator<<(std::ostream &os, const Flags &f) {
 
 const std::map<std::string, Flags::Flag> Flags::arg_to_flag = {
 	{"-r", Flags::random_password}, {"--randomized-passwords", Flags::random_password},
-	{"-o", Flags::use_overrides}, {"--override", Flags::use_overrides},
-	{"-f", Flags::use_fallbacks}, {"--fallback", Flags::use_fallbacks}
+	{"-o", Flags::no_overrides}, {"--no-override", Flags::no_overrides},
+	{"-f", Flags::no_fallbacks}, {"--no-fallback", Flags::no_fallbacks}
 };
 constexpr int Flags::mandatory_arg_count;

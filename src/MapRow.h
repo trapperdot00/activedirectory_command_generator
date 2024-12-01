@@ -27,6 +27,7 @@ public:
 		cmd_override,
 		cmd_fallback
 	};
+	static const std::map<std::string, int> cmd_name;
 	int type() const { return _type; }
 	std::string parameter() const;
 private:
@@ -37,6 +38,7 @@ std::string::size_type get_end_of_command(const std::string &, const std::string
 std::string command_part(const std::string &);
 std::string value_part(const std::string &);
 
+bool is_command(const std::string &);
 int get_command_type(const std::string &);
 
 #endif
