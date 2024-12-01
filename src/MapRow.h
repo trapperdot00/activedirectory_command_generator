@@ -33,6 +33,10 @@ private:
 	int _type;
 };
 
+std::string::size_type get_end_of_command(const std::string &, const std::string &);
+std::string command_part(const std::string &);
+std::string value_part(const std::string &);
+
 int get_command_type(const std::string &);
 
 #endif

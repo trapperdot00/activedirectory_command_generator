@@ -15,20 +15,10 @@ NewUserGen::NewUserGen(std::ifstream &csvfile, std::ifstream &mapfile, Flags f)
 	   	maprows.emplace_back(line);;
 		const MapRow &maprow = maprows[maprows.size() - 1];
 		const std::string &parameter = maprow.parameter();
-		switch (maprow.type()) {
-		case MapRow::mapping:
+		if (maprow.type() == MapRow::mapping) {
 			if (existing_parameter_mappings.find(parameter) != existing_parameter_mappings.cend())
 				throw std::runtime_error("multiple bindings to parameter " + parameter);
 			existing_parameter_mappings.insert(parameter);
-			break;
-		case MapRow::cmd_override:
-			// TODO
-			break;
-		case MapRow::cmd_fallback:
-			// TODO
-			break;
-		default:
-			break;
 		}
 	}
 	if (maprows.size() == 0)
@@ -108,14 +98,15 @@ std::unordered_map<std::string, std::pair<std::string, std::vector<std::size_t>>
 	return ret;
 }
 
-void NewUserGen::insert_commands(const std::unordered_map<std::string, std::pair<std::string, std::vector<std::size_t>>> &cmd_map,
-		std::vector<std::map<std::string, std::string>> &mapped_commands) const {
+void NewUserGen::insert_commands
+(const std::unordered_map<std::string, std::pair<std::string, std::vector<std::size_t>>> &cmd_map,
+std::vector<std::map<std::string, std::string>> &mapped_commands) const {
 	for (auto it = cmd_map.cbegin(); it != cmd_map.cend(); ++it) {
 		const int cmd_type = get_command_type(it->first);
 		for (const auto &i : it->second.second) {
 			const std::string &parameter = maprows[i].parameter();
 			const std::string &value = value_part(maprows[i].left());
-			for (std::map<std::string, std::string> &user_commands : mapped_commands) {	
+			for (std::map<std::string, std::string> &user_commands : mapped_commands) {
 				std::string formatted = format_argument(value, parameter_value.find(parameter)->second);
 				switch (cmd_type) {
 				case MapRow::cmd_override:
@@ -124,15 +115,18 @@ void NewUserGen::insert_commands(const std::unordered_map<std::string, std::pair
 				case MapRow::cmd_fallback:
 					if (user_commands.find(parameter) == user_commands.cend()
 							|| user_commands.find(parameter)->second.empty())
-					user_commands[parameter] = formatted;
+						user_commands[parameter] = formatted;
 					break;
 				}
 			}
 		}
 	}
-	for (const auto &m : mapped_commands)
+	for (auto &m : mapped_commands) {
 		if (!has_all_mandatory_commands(m))
 			throw std::runtime_error("mandatory command has no value");
+		if (flags & Flags::random_password)
+			randomize_password(m);
+	}
 }
 
 bool NewUserGen::has_all_mandatory_commands(const std::map<std::string, std::string> &user_commands) const {
@@ -144,23 +138,16 @@ bool NewUserGen::has_all_mandatory_commands(const std::map<std::string, std::str
 	);
 }
 
-std::string::size_type get_end_of_command(const std::string &s, const std::string &callerfuncname) {
-	std::string::size_type ret = find_nth(s, 2, '$');
-	if (ret == std::string::npos)
-		throw std::runtime_error(callerfuncname + " received a non-command string");
-	return ret;
-}
-
-std::string command_part(const std::string &s) {
-	std::string::size_type end_pos = get_end_of_command(s, "command_part");
-	std::string ret = s.substr(0, end_pos + 1);
-	return ret;
-}
-
-std::string value_part(const std::string &s) {
-	std::string::size_type end_pos = get_end_of_command(s, "value_part");
-	std::string ret = s.substr(end_pos + 1);
-	return ret;
+void NewUserGen::randomize_password(std::map<std::string, std::string> &user_commands) const {
+	static std::vector<Random<char>> random_chargen =
+		{ {'a', 'z'}, {'A', 'Z'}, {'0', '9'} };
+	static Random<int> random_selector(0, 2);
+	static constexpr std::size_t pass_length = 12;
+	static const std::string parameter = "-AccountPassword";
+	std::ostringstream pass_stream;
+	for (std::size_t cnt = 0; cnt != pass_length; ++cnt)
+		pass_stream << random_chargen[random_selector()]();
+	user_commands[parameter] = format_argument(pass_stream.str(), parameter_value.find(parameter)->second);
 }
 
 std::ostream &operator<<(std::ostream &os, const NewUserGen &a) {

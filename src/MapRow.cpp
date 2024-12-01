@@ -42,6 +42,25 @@ std::ostream &MapRow::print(std::ostream &os) const {
 	return os << left() << ":\t" << right();
 }
 
+std::string::size_type get_end_of_command(const std::string &s, const std::string &callerfuncname) {
+	std::string::size_type ret = find_nth(s, 2, '$');
+	if (ret == std::string::npos)
+		throw std::runtime_error(callerfuncname + " received a non-command string");
+	return ret;
+}
+
+std::string command_part(const std::string &s) {
+	std::string::size_type end_pos = get_end_of_command(s, "command_part");
+	std::string ret = s.substr(0, end_pos + 1);
+	return ret;
+}
+
+std::string value_part(const std::string &s) {
+	std::string::size_type end_pos = get_end_of_command(s, "value_part");
+	std::string ret = s.substr(end_pos + 1);
+	return ret;
+}
+
 int get_command_type(const std::string &s) {
 	if (s == "$OVERRIDE$")
 		return MapRow::cmd_override;
