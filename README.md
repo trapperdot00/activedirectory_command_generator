@@ -41,6 +41,15 @@ $FALLBACK$Passw0rd;-AccountPassword
 It is an error to not give a value after a command.\
 An `$OVERRIDE$` is stronger than a `$FALLBACK$`.
 
+##### Comments
+Commented-out rows are not processed. The character to start a commentline is `#`.
+
+Example for a commented-out row:
+```
+# This row won't be processed
+#username;-Name this won't either
+```
+
 3. ### Run the program
 
 The program takes three mandatory command-line arguments: the input CSV file, a mapping file and an output file:
