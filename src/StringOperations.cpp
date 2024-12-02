@@ -18,6 +18,19 @@ std::string trim(const std::string &s) {
 	return trim_right(trim_left(s));
 }
 
+std::string truncate_until(const std::string& s, std::size_t n) {
+	return s.substr(0, n);
+}
+
+std::vector<std::string> split(const std::string &s, char c) {
+	std::vector<std::string> ret;
+	std::istringstream stream(s);
+	std::string temp;
+	while (std::getline(stream, temp, c))
+		ret.push_back(std::move(temp));
+	return ret;
+}
+
 bool only_whitespace(const std::string &s) {
 	return s.find_first_not_of("\n\t ") == std::string::npos;
 }
